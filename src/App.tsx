@@ -10,7 +10,8 @@ type FilterType = "all" | MediaType;
 export default function App() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [lightboxItem, setLightboxItem] = useState<MediaItem | null>(null);
-  const [visibleCount, setVisibleCount] = useState(24);
+  const [visibleCount, setVisibleCount] = useState(20);
+  const [isLoadingBatch, setIsLoadingBatch] = useState(false);
 
 
   const filteredItems = useMemo(() => {
@@ -23,6 +24,24 @@ export default function App() {
     return filteredItems.slice(0, visibleCount);
   }, [filteredItems, visibleCount]);
 
+
+  // Infinite scroll observer - Facebook style batching
+  const observerRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node || isLoadingBatch) return;
+    
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && visibleCount < filteredItems.length) {
+        setIsLoadingBatch(true);
+        // Simulated "Fetch" delay to prevent request bursts
+        setTimeout(() => {
+          setVisibleCount(prev => prev + 20);
+          setIsLoadingBatch(false);
+        }, 800);
+      }
+    }, { threshold: 0.1, rootMargin: "100px" });
+    
+    observer.observe(node);
+  }, [filteredItems.length, visibleCount, isLoadingBatch]);
 
   const imageCount = mediaItems.filter((i) => i.type === "image").length;
   const videoCount = mediaItems.filter((i) => i.type === "video").length;
@@ -92,14 +111,14 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Masonry Archive Grid */}
+        {/* Sequential Grid Archive */}
         {visibleItems.length > 0 ? (
           <>
-            <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {visibleItems.map((item, index) => (
                 <div
                   key={`${item.id}-${index}`}
-                  className="mb-4 break-inside-avoid animate-fade-in"
+                  className="animate-fade-in"
                   style={{ animationDelay: `${(index % 12) * 40}ms` }}
                 >
                   <MediaCard
@@ -111,14 +130,16 @@ export default function App() {
               ))}
             </div>
 
+            {/* Infinite Scroll Sentinel */}
             {visibleCount < filteredItems.length && (
-              <div className="mt-32 text-center">
-                <button
-                  onClick={() => setVisibleCount(prev => prev + 24)}
-                  className="group relative inline-flex cursor-pointer items-center gap-4 overflow-hidden rounded-none border border-white/5 bg-white/5 px-16 py-6 text-[10px] font-black uppercase tracking-[0.4em] text-white transition-all hover:bg-accent hover:border-accent active:scale-95 shadow-2xl"
-                >
-                  <span className="relative z-10">Expand Archive</span>
-                </button>
+              <div 
+                ref={observerRef} 
+                className="h-40 flex items-center justify-center mt-20"
+              >
+                <div className="flex flex-col items-center gap-4 opacity-20">
+                  <div className="h-10 w-[1px] bg-white animate-bounce" />
+                  <span className="text-[8px] uppercase tracking-[0.4em]">Decrypting Archive</span>
+                </div>
               </div>
             )}
           </>
