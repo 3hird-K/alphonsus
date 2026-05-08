@@ -4,12 +4,21 @@ import type { MediaItem } from "../data/types";
 
 interface LightboxProps {
   item: MediaItem | null;
+  isSlideshow: boolean;
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
+  onToggleSlideshow: () => void;
 }
 
-export default function Lightbox({ item, onClose, onPrev, onNext }: LightboxProps) {
+export default function Lightbox({ 
+  item, 
+  isSlideshow, 
+  onClose, 
+  onPrev, 
+  onNext, 
+  onToggleSlideshow 
+}: LightboxProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
@@ -42,15 +51,31 @@ export default function Lightbox({ item, onClose, onPrev, onNext }: LightboxProp
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
+      {/* Slideshow Toggle Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleSlideshow();
+        }}
+        className={`absolute top-6 right-20 z-50 flex h-12 px-6 items-center justify-center rounded-full transition-all hover:scale-105 cursor-pointer border font-black text-[9px] uppercase tracking-widest gap-2
+          ${isSlideshow 
+            ? "bg-accent text-white border-accent shadow-[0_0_20px_rgba(var(--accent-rgb),0.3)]" 
+            : "bg-white/10 text-white/70 border-white/10 hover:bg-white/20"
+          }
+        `}
+        aria-label="Toggle Slideshow"
+      >
+        <div className={`h-1.5 w-1.5 rounded-full ${isSlideshow ? "bg-white animate-pulse" : "bg-white/30"}`} />
+        {isSlideshow ? "Slideshow On" : "Slideshow Off"}
+      </button>
+
       {/* Close button */}
       <button
         onClick={onClose}
         className="absolute top-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 hover:scale-110 cursor-pointer"
         aria-label="Close"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <X size={20} />
       </button>
 
       {/* Prev button */}

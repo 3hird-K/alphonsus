@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { mediaItems } from "./data/media";
 import type { MediaItem } from "./data/types";
 import MediaCard from "./components/MediaCard";
@@ -10,6 +10,7 @@ export default function App() {
   const [visibleCount, setVisibleCount] = useState(20);
   const [isLoadingBatch, setIsLoadingBatch] = useState(false);
   const [activeVideosCount, setActiveVideosCount] = useState(0);
+  const [isSlideshow, setIsSlideshow] = useState(false);
 
   const isVideoPlaying = activeVideosCount > 0;
 
@@ -31,7 +32,7 @@ export default function App() {
   // Infinite scroll observer
   const observerRef = useCallback((node: HTMLDivElement | null) => {
     if (!node || isLoadingBatch) return;
-    
+
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting && visibleCount < shuffledItems.length) {
         setIsLoadingBatch(true);
@@ -41,7 +42,7 @@ export default function App() {
         }, 800);
       }
     }, { threshold: 0.1, rootMargin: "100px" });
-    
+
     observer.observe(node);
   }, [shuffledItems.length, visibleCount, isLoadingBatch]);
 
@@ -60,11 +61,11 @@ export default function App() {
       if (!current) return null;
       const idx = shuffledItems.findIndex((i) => i.id === current.id);
       const nextItem = shuffledItems[(idx - 1 + shuffledItems.length) % shuffledItems.length];
-      
+
       // Update video count if switching between media types
       if (current.type === 'video' && nextItem.type !== 'video') handleVideoPlayChange(false);
       if (current.type !== 'video' && nextItem.type === 'video') handleVideoPlayChange(true);
-      
+
       return nextItem;
     });
   }, [shuffledItems, handleVideoPlayChange]);
@@ -74,20 +75,37 @@ export default function App() {
       if (!current) return null;
       const idx = shuffledItems.findIndex((i) => i.id === current.id);
       const nextItem = shuffledItems[(idx + 1) % shuffledItems.length];
-      
+
       // Update video count if switching between media types
       if (current.type === 'video' && nextItem.type !== 'video') handleVideoPlayChange(false);
       if (current.type !== 'video' && nextItem.type === 'video') handleVideoPlayChange(true);
-      
+
       return nextItem;
     });
   }, [shuffledItems, handleVideoPlayChange]);
 
+  const toggleSlideshow = useCallback(() => {
+    setIsSlideshow(prev => !prev);
+    if (!lightboxItem && !isSlideshow) {
+      setLightboxItem(shuffledItems[0]);
+    }
+  }, [lightboxItem, isSlideshow, shuffledItems]);
+
+  // Slideshow logic
+  useEffect(() => {
+    let interval: number;
+    if (isSlideshow && lightboxItem) {
+      interval = window.setInterval(() => {
+        handleLightboxNext();
+      }, 4000); // 4 seconds per slide
+    }
+    return () => clearInterval(interval);
+  }, [isSlideshow, lightboxItem, handleLightboxNext]);
+
   return (
     <div className="min-h-screen bg-industrial text-white selection:bg-amber-500/30">
-      {/* Main Content Section */}
       <main className="relative z-10 mx-auto max-w-full p-0 pb-48">
-        
+
         {/* Sequential Grid Archive */}
         {visibleItems.length > 0 ? (
           <>
@@ -110,8 +128,8 @@ export default function App() {
 
             {/* Infinite Scroll Sentinel */}
             {visibleCount < shuffledItems.length && (
-              <div 
-                ref={observerRef} 
+              <div
+                ref={observerRef}
                 className="h-40 flex items-center justify-center mt-20"
               >
                 <div className="flex flex-col items-center gap-4 opacity-20">
@@ -134,9 +152,20 @@ export default function App() {
       {/* Lightbox */}
       <Lightbox
         item={lightboxItem}
-        onClose={handleLightboxClose}
-        onPrev={handleLightboxPrev}
-        onNext={handleLightboxNext}
+        isSlideshow={isSlideshow}
+        onClose={() => {
+          handleLightboxClose();
+          setIsSlideshow(false);
+        }}
+        onPrev={() => {
+          handleLightboxPrev();
+          setIsSlideshow(false); // Pause slideshow on manual interaction
+        }}
+        onNext={() => {
+          handleLightboxNext();
+          setIsSlideshow(false); // Pause slideshow on manual interaction
+        }}
+        onToggleSlideshow={() => setIsSlideshow(!isSlideshow)}
       />
     </div>
   );
