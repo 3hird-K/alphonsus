@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
-import { Play, ImageIcon, AlertCircle, Camera } from "lucide-react";
+import { Play, ImageIcon, AlertCircle, Camera, X } from "lucide-react";
 import type { MediaItem } from "../data/types";
 
 interface MediaCardProps {
   item: MediaItem;
   index: number;
   onClick: () => void;
+  onVideoPlay?: (playing: boolean) => void;
 }
 
-export default function MediaCard({ item, index, onClick }: MediaCardProps) {
+export default function MediaCard({ item, index, onClick, onVideoPlay }: MediaCardProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [imgSrc, setImgSrc] = useState<string>("");
   const [hasError, setHasError] = useState(false);
@@ -32,6 +33,8 @@ export default function MediaCard({ item, index, onClick }: MediaCardProps) {
     return () => observer.disconnect();
   }, [item.id]);
 
+  const [isPlaying, setIsPlaying] = useState(false);
+
   useEffect(() => {
     if (!isInView) return;
 
@@ -40,7 +43,7 @@ export default function MediaCard({ item, index, onClick }: MediaCardProps) {
 
     const timer = setTimeout(() => {
       const initialSrc = item.thumbnail || (item.type === "image" ? item.src : "");
-      console.log(`[MediaCard ${item.id}] Starting load:`, initialSrc);
+      console.log(`[MediaCard ${item.id}] Initiating decryption sequence:`, initialSrc);
       setImgSrc(initialSrc);
     }, 50);
 
@@ -48,52 +51,99 @@ export default function MediaCard({ item, index, onClick }: MediaCardProps) {
   }, [item.thumbnail, item.src, item.type, item.id, isInView]);
 
   const handleImageError = () => {
-    console.warn(`[MediaCard ${item.id}] Failed at:`, imgSrc);
+    console.warn(`[MediaCard ${item.id}] Signal lost at:`, imgSrc);
 
     if (item.fileId) {
-      // Stage 1: Try High-Res View
       if (imgSrc.includes("thumbnail?id=")) {
         const nextSrc = `https://drive.google.com/uc?export=view&id=${item.fileId}`;
-        console.log(`[MediaCard ${item.id}] Falling back to High-Res View:`, nextSrc);
+        console.log(`[MediaCard ${item.id}] Switching to Secondary Frequency:`, nextSrc);
         setImgSrc(nextSrc);
         return;
       }
-      // Stage 2: Try Direct CDN (lh3)
       if (imgSrc.includes("uc?export=view")) {
         const nextSrc = `https://lh3.googleusercontent.com/d/${item.fileId}=s800`;
-        console.log(`[MediaCard ${item.id}] Falling back to Direct CDN (lh3):`, nextSrc);
+        console.log(`[MediaCard ${item.id}] Connecting to Direct CDN:`, nextSrc);
         setImgSrc(nextSrc);
         return;
       }
     }
 
-    console.error(`[MediaCard ${item.id}] All loading stages failed.`);
+    console.error(`[MediaCard ${item.id}] Fragment corrupted. Recovery failed.`);
     setHasError(true);
     setIsLoaded(true);
+  };
+
+  const handlePlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (item.type === 'video') {
+      console.log(`[MediaCard ${item.id}] Engaging playback engine...`);
+      setIsPlaying(true);
+      if (onVideoPlay) onVideoPlay(true);
+    } else {
+      onClick();
+    }
   };
 
   return (
     <div
       id={`media-card-${item.id}`}
-      className={`group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-white/5 bg-[#0a0908] transition-all duration-700 shadow-2xl aspect-video ${isLoaded ? 'hover:border-amber-500/30' : ''}`}
-      onClick={onClick}
+      className="group relative w-full cursor-pointer overflow-hidden rounded-sm border border-white/5 bg-[#0a0908] transition-all duration-700 shadow-2xl aspect-video"
+      onClick={handlePlayClick}
     >
       {/* Image / Video Container */}
-      <div className="relative z-0 h-full w-full overflow-hidden bg-[#0a0908]">
+      <div className="relative z-0 h-full w-full overflow-hidden bg-[#0a0908] rounded-lg">
+        {item.type === 'video' && isPlaying && isLoaded ? (
+          <div className="absolute inset-0 h-full w-full">
+            <iframe
+              src={`${item.src}${item.src.includes('?') ? '&' : '?'}autoplay=1&controls=1`}
+              className="h-full w-full border-none"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+            {/* Close Video Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPlaying(false);
+                if (onVideoPlay) onVideoPlay(false);
+              }}
+              className="absolute top-4 right-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white border border-white/10 hover:bg-accent transition-all cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        ) : null}
+
         {imgSrc && !hasError ? (
           <img
             src={imgSrc}
             alt="Archive Entry"
-            className={`h-full w-full object-cover transition-all duration-1000 group-hover:scale-110 ${isLoaded ? 'opacity-100' : 'opacity-0 scale-105'}`}
+            className={`h-full w-full object-cover transition-all duration-1000 ${isLoaded ? 'opacity-100' : 'opacity-0 scale-105'} ${isPlaying && item.type === 'video' ? 'opacity-0' : 'opacity-100'}`}
             loading="lazy"
             onLoad={() => {
-              console.log(`[MediaCard ${item.id}] Successfully loaded:`, imgSrc);
+              console.log(`[MediaCard ${item.id}] Entry decrypted:`, imgSrc);
               setIsLoaded(true);
               setHasError(false);
             }}
             onError={handleImageError}
           />
         ) : null}
+
+        {/* Play Icon Overlay for Videos */}
+        {item.type === 'video' && !isPlaying && isLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-all duration-500">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-black/40 backdrop-blur-md transition-all duration-300">
+              <div className="ml-1 flex h-0 w-0 border-y-[10px] border-l-[18px] border-y-transparent border-l-white" />
+            </div>
+
+            {/* Archival Label */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">
+                Play Fragment
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Unified minimalist placeholder - No lines or labels */}
         {(!isLoaded || hasError) && (

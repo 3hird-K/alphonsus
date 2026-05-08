@@ -1,38 +1,40 @@
 import { useState, useMemo, useCallback } from "react";
-import { Camera, Film, LayoutGrid, Heart, ExternalLink } from "lucide-react";
 import { mediaItems } from "./data/media";
-import type { MediaItem, MediaType } from "./data/types";
+import type { MediaItem } from "./data/types";
 import MediaCard from "./components/MediaCard";
 import Lightbox from "./components/Lightbox";
-
-type FilterType = "all" | MediaType;
+import MusicPlayer from "./components/MusicPlayer";
 
 export default function App() {
-  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [lightboxItem, setLightboxItem] = useState<MediaItem | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
   const [isLoadingBatch, setIsLoadingBatch] = useState(false);
+  const [activeVideosCount, setActiveVideosCount] = useState(0);
 
+  const isVideoPlaying = activeVideosCount > 0;
 
-  const filteredItems = useMemo(() => {
-    return mediaItems.filter((item) => {
-      return activeFilter === "all" || item.type === activeFilter;
-    });
-  }, [activeFilter]);
+  const handleVideoPlayChange = useCallback((playing: boolean) => {
+    setActiveVideosCount(prev => playing ? prev + 1 : Math.max(0, prev - 1));
+  }, []);
 
+  // Randomize the archive on each refresh
+  const shuffledItems = useMemo(() => {
+    return [...mediaItems].sort(() => Math.random() - 0.5);
+  }, []);
+
+  // Simplified: No filters as requested
   const visibleItems = useMemo(() => {
-    return filteredItems.slice(0, visibleCount);
-  }, [filteredItems, visibleCount]);
+    return shuffledItems.slice(0, visibleCount);
+  }, [shuffledItems, visibleCount]);
 
 
-  // Infinite scroll observer - Facebook style batching
+  // Infinite scroll observer
   const observerRef = useCallback((node: HTMLDivElement | null) => {
     if (!node || isLoadingBatch) return;
     
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && visibleCount < filteredItems.length) {
+      if (entries[0].isIntersecting && visibleCount < shuffledItems.length) {
         setIsLoadingBatch(true);
-        // Simulated "Fetch" delay to prevent request bursts
         setTimeout(() => {
           setVisibleCount(prev => prev + 20);
           setIsLoadingBatch(false);
@@ -41,97 +43,73 @@ export default function App() {
     }, { threshold: 0.1, rootMargin: "100px" });
     
     observer.observe(node);
-  }, [filteredItems.length, visibleCount, isLoadingBatch]);
-
-  const imageCount = mediaItems.filter((i) => i.type === "image").length;
-  const videoCount = mediaItems.filter((i) => i.type === "video").length;
+  }, [shuffledItems.length, visibleCount, isLoadingBatch]);
 
   const handleLightboxOpen = useCallback((item: MediaItem) => {
     setLightboxItem(item);
-  }, []);
+    if (item.type === 'video') handleVideoPlayChange(true);
+  }, [handleVideoPlayChange]);
 
   const handleLightboxClose = useCallback(() => {
+    if (lightboxItem?.type === 'video') handleVideoPlayChange(false);
     setLightboxItem(null);
-  }, []);
+  }, [lightboxItem, handleVideoPlayChange]);
 
   const handleLightboxPrev = useCallback(() => {
     setLightboxItem((current: MediaItem | null) => {
       if (!current) return null;
-      const idx = filteredItems.findIndex((i) => i.id === current.id);
-      return filteredItems[(idx - 1 + filteredItems.length) % filteredItems.length];
+      const idx = shuffledItems.findIndex((i) => i.id === current.id);
+      const nextItem = shuffledItems[(idx - 1 + shuffledItems.length) % shuffledItems.length];
+      
+      // Update video count if switching between media types
+      if (current.type === 'video' && nextItem.type !== 'video') handleVideoPlayChange(false);
+      if (current.type !== 'video' && nextItem.type === 'video') handleVideoPlayChange(true);
+      
+      return nextItem;
     });
-  }, [filteredItems]);
+  }, [shuffledItems, handleVideoPlayChange]);
 
   const handleLightboxNext = useCallback(() => {
     setLightboxItem((current: MediaItem | null) => {
       if (!current) return null;
-      const idx = filteredItems.findIndex((i) => i.id === current.id);
-      return filteredItems[(idx + 1) % filteredItems.length];
+      const idx = shuffledItems.findIndex((i) => i.id === current.id);
+      const nextItem = shuffledItems[(idx + 1) % shuffledItems.length];
+      
+      // Update video count if switching between media types
+      if (current.type === 'video' && nextItem.type !== 'video') handleVideoPlayChange(false);
+      if (current.type !== 'video' && nextItem.type === 'video') handleVideoPlayChange(true);
+      
+      return nextItem;
     });
-  }, [filteredItems]);
-
-  const filterButtons: { key: FilterType; label: string; icon: React.ReactNode; count: number }[] = [
-    { key: "all", label: "All", icon: <LayoutGrid size={16} />, count: mediaItems.length },
-    { key: "image", label: "Photos", icon: <Camera size={16} />, count: imageCount },
-    { key: "video", label: "Videos", icon: <Film size={16} />, count: videoCount },
-  ];
+  }, [shuffledItems, handleVideoPlayChange]);
 
   return (
     <div className="min-h-screen bg-industrial text-white selection:bg-amber-500/30">
-      {/* Industrial Header */}
-      {/* <header className="relative overflow-hidden pt-32 pb-20 md:pt-40 md:pb-32">
-        <div className="relative z-10 mx-auto max-w-7xl px-4 text-center">
-          <h1 className="animate-fade-in font-serif text-7xl sm:text-9xl md:text-[12rem] tracking-tight text-white/90">
-            Archive
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl animate-fade-in text-xs uppercase tracking-[0.6em] text-accent font-bold" style={{ animationDelay: '150ms' }}>
-            {imageCount + videoCount} Captured Fragments
-          </p>
-        </div>
-      </header> */}
-
       {/* Main Content Section */}
-      <main className="relative z-10 mx-auto max-w-[1800px] px-4 pb-32 sm:px-6 lg:px-8">
-        {/* Navigation - Minimalist Glass */}
-        <div className="sticky top-8 z-50 mb-20 flex justify-center">
-          <nav className="glass rounded-full p-1 shadow-2xl backdrop-blur-2xl flex items-center gap-1">
-            {filterButtons.map((btn) => (
-              <button
-                key={btn.key}
-                onClick={() => setActiveFilter(btn.key)}
-                className={`flex cursor-pointer items-center justify-center gap-2 rounded-full px-6 py-3 text-[10px] font-black uppercase tracking-widest transition-all duration-500 ${activeFilter === btn.key
-                  ? "bg-accent text-white shadow-[0_0_20px_rgba(217,119,6,0.4)] scale-105"
-                  : "text-white/30 hover:text-white"
-                  }`}
-              >
-                {btn.icon}
-                <span className="hidden sm:inline">{btn.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
+      <main className="relative z-10 mx-auto max-w-full p-0 pb-48">
+        
         {/* Sequential Grid Archive */}
         {visibleItems.length > 0 ? (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {visibleItems.map((item, index) => (
                 <div
                   key={`${item.id}-${index}`}
-                  className="animate-fade-in"
+                  className={`animate-fade-in ${item.type === 'video' ? 'col-span-2 row-span-2' : ''}`}
                   style={{ animationDelay: `${(index % 12) * 40}ms` }}
                 >
                   <MediaCard
                     item={item}
                     index={index}
                     onClick={() => handleLightboxOpen(item)}
+                    onVideoPlay={handleVideoPlayChange}
                   />
                 </div>
               ))}
             </div>
 
             {/* Infinite Scroll Sentinel */}
-            {visibleCount < filteredItems.length && (
+            {visibleCount < shuffledItems.length && (
               <div 
                 ref={observerRef} 
                 className="h-40 flex items-center justify-center mt-20"
@@ -150,15 +128,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Minimal Footer */}
-      {/* <footer className="border-t border-white/5 bg-[#0a0908] py-32 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-6 flex flex-col md:flex-row items-center justify-between gap-10">
-          <div className="text-2xl font-serif italic text-white/20">ALPHONSUS</div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.5em] text-white/10">
-            Established 2026 &bull; Permanent Collection
-          </div>
-        </div>
-      </footer> */}
+      {/* Floating Music Player */}
+      <MusicPlayer isDucked={isVideoPlaying} />
 
       {/* Lightbox */}
       <Lightbox
