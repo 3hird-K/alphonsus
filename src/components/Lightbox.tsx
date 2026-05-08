@@ -39,16 +39,18 @@ export default function Lightbox({ item, onClose, onPrev, onNext }: LightboxProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/98 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-8 right-8 z-10 flex h-14 w-14 items-center justify-center border border-white/10 bg-black/50 text-white transition-all hover:bg-accent hover:border-accent hover:scale-110 cursor-pointer"
-        aria-label="Close lightbox"
+        className="absolute top-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 hover:scale-110 cursor-pointer"
+        aria-label="Close"
       >
-        <X size={24} />
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
       </button>
 
       {/* Prev button */}
@@ -57,10 +59,12 @@ export default function Lightbox({ item, onClose, onPrev, onNext }: LightboxProp
           e.stopPropagation();
           onPrev();
         }}
-        className="absolute left-8 z-10 flex h-24 w-12 items-center justify-center border border-white/5 bg-black/20 text-white/40 transition-all hover:bg-accent/20 hover:text-white cursor-pointer"
-        aria-label="Previous item"
+        className="absolute left-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 hover:scale-110 cursor-pointer"
+        aria-label="Previous"
       >
-        <ChevronLeft size={32} />
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
       </button>
 
       {/* Next button */}
@@ -69,70 +73,81 @@ export default function Lightbox({ item, onClose, onPrev, onNext }: LightboxProp
           e.stopPropagation();
           onNext();
         }}
-        className="absolute right-8 z-10 flex h-24 w-12 items-center justify-center border border-white/5 bg-black/20 text-white/40 transition-all hover:bg-accent/20 hover:text-white cursor-pointer"
-        aria-label="Next item"
+        className="absolute right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 hover:scale-110 cursor-pointer"
+        aria-label="Next"
       >
-        <ChevronRight size={32} />
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
       </button>
 
-      {/* Content */}
+      {/* Content Area */}
       <div
-        className="flex max-h-[95vh] max-w-[95vw] flex-col items-center"
+        className="relative flex h-full w-full items-center justify-center p-4 sm:p-12"
         onClick={(e) => e.stopPropagation()}
       >
         {item.type === "video" ? (
-          <div className="aspect-video w-full max-w-5xl overflow-hidden rounded-3xl shadow-2xl bg-black">
+          <div className="aspect-video w-full max-w-6xl overflow-hidden rounded-lg shadow-2xl bg-black">
             <iframe
-              src={item.src}
+              key={item.id}
+              src={`${item.src}${item.src.includes('?') ? '&' : '?'}autoplay=1`}
               className="h-full w-full border-0"
               allow="autoplay; fullscreen"
               onLoad={() => setIsLoading(false)}
+              title={`Video ${item.id}`}
             ></iframe>
           </div>
         ) : (
-          <div className="relative">
+          <div className="relative flex h-full w-full items-center justify-center">
             {isLoading && !imageError && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black">
-                <div className="h-1 w-24 bg-white/10 overflow-hidden">
-                  <div className="h-full bg-white animate-shimmer" style={{ width: '50%' }} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="h-1 w-32 bg-white/10 overflow-hidden rounded-full">
+                  <div className="h-full bg-accent animate-shimmer" style={{ width: '40%' }} />
                 </div>
               </div>
             )}
             {!imageError ? (
               <img
+                key={item.id}
                 src={item.src}
-                className="max-h-[85vh] rounded-3xl object-contain shadow-2xl transition-opacity duration-300"
+                alt={`Archive ${item.id}`}
+                className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl transition-all duration-500"
                 onLoad={() => setIsLoading(false)}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  console.warn(`[Lightbox ${item.id}] Failed to load:`, target.src);
                   if (item.fileId) {
-                    if (!target.src.includes("sz=w1600") && !target.src.includes("uc?id=")) {
-                      const nextSrc = `https://drive.google.com/thumbnail?id=${item.fileId}&sz=w1600`;
-                      console.log(`[Lightbox ${item.id}] Falling back to high-res thumbnail:`, nextSrc);
+                    if (target.src.includes("uc?id=") || target.src.includes("uc?export=view")) {
+                      const nextSrc = `https://lh3.googleusercontent.com/d/${item.fileId}=s2048`;
                       target.src = nextSrc;
                       return;
-                    } else if (!target.src.includes("uc?id=")) {
-                      const nextSrc = `https://drive.google.com/uc?id=${item.fileId}`;
-                      console.log(`[Lightbox ${item.id}] Falling back to direct uc:`, nextSrc);
+                    }
+                    if (target.src.includes("lh3.googleusercontent.com")) {
+                      const nextSrc = `https://drive.google.com/thumbnail?id=${item.fileId}&sz=w1600`;
                       target.src = nextSrc;
                       return;
                     }
                   }
-                  console.error(`[Lightbox ${item.id}] All attempts failed.`);
                   setImageError(true);
                   setIsLoading(false);
                 }}
               />
             ) : (
-              <div className="flex min-h-80 min-w-[320px] items-center justify-center rounded-none border border-white/10 bg-white/2 text-center text-white/20 shadow-2xl">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em]">Format Error</p>
+              <div className="flex flex-col items-center gap-4 rounded-xl bg-white/5 p-12 backdrop-blur-md">
+                <div className="h-10 w-10 rounded-full border border-white/20 flex items-center justify-center text-white/40">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Signal Lost</span>
               </div>
             )}
           </div>
         )}
+      </div>
 
-        {/* Minimal Label - Removed as requested */}
+      {/* Counter */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-6 py-2 text-xs font-bold tracking-widest text-white/70 backdrop-blur-md border border-white/5">
+        {item.id} / 389
       </div>
     </div>
   );
